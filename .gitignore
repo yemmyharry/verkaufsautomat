@@ -1,0 +1,15 @@
+# Log files
+*.log
+
+
+
+# JetBrains IDE
+.idea/
+
+# Mock files
+**/*_mock.go
+
+#Env
+*.env
+
+
