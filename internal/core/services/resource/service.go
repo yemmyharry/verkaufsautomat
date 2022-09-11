@@ -9,6 +9,18 @@ type service struct {
 	MachineRepository ports.MachineRepository
 }
 
+func (s service) GetProducts() ([]resource.Product, error) {
+	return s.MachineRepository.GetProducts()
+}
+
+func (s service) GetProductById(id int) (resource.Product, error) {
+	return s.MachineRepository.GetProductById(id)
+}
+
+func (s service) CreateProduct(product *resource.Product) error {
+	return s.MachineRepository.CreateProduct(product)
+}
+
 func (s service) Login(user *resource.User) error {
 	return s.MachineRepository.Login(user)
 }
