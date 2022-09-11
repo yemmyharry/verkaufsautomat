@@ -11,4 +11,7 @@ type MachineRepository interface {
 	GetProductById(id int) (resource.Product, error)
 	UpdateProductByID(id int, product *resource.Product) error
 	DeleteProductByID(id int) error
+	DepositMoney(userid, amount int) error
+	GetUserById(id int) (resource.User, error)
+	UpdateUser(user resource.User) error
 }
