@@ -12,6 +12,7 @@ type User struct {
 	UserID   uint   `json:"user_id" gorm:"primaryKey;autoIncrement"`
 	Username string `json:"username" gorm:"not null;unique"`
 	Password string `json:"password" gorm:"not null"`
+	Deposit  int    `json:"deposit"`
 	RoleID   uint   `json:"role_id" gorm:"foreignKey:RoleId"`
 }
 
