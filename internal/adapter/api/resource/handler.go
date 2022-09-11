@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,15 @@ import (
 
 type HealthCheckResponse struct {
 	Status string
+}
+
+func insertCoin(coin int) (bool, error) {
+	if coin == 5 || coin == 10 || coin == 20 || coin == 50 || coin == 100 {
+		logger.Info("Coin inserted")
+		return true, nil
+	}
+	logger.Error("Invalid coin")
+	return false, errors.New("invalid coin")
 }
 
 func (s *HTTPHandler) HealthCheck(c *gin.Context) {
@@ -89,6 +99,8 @@ func (s *HTTPHandler) Login(c *gin.Context) {
 	}
 
 	c.Header("Authorization", "Bearer "+token)
+
+	c.SetCookie("token", token, 3600, "/", "localhost", false, true)
 
 	if err := s.MachineService.Login(&user); err != nil {
 		logger.Error("Error logging in: " + err.Error())
@@ -303,4 +315,216 @@ func (s *HTTPHandler) DeleteProduct(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"message": "product deleted"})
+}
+
+func (s *HTTPHandler) DepositMoney(c *gin.Context) {
+
+	var deposit struct {
+		Amount int `json:"amount"`
+	}
+
+	if err := c.ShouldBindJSON(&deposit); err != nil {
+		logger.Error("Error binding json: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	_, err := insertCoin(deposit.Amount)
+	if err != nil {
+		logger.Error("Error inserting coin: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokenString := c.Request.Header.Get("Authorization")
+	if len(strings.Split(tokenString, " ")) != 2 {
+		logger.Error("Error getting token from header")
+
+	}
+
+	token, err := verifyToken(strings.Split(tokenString, " ")[1])
+	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	roleID := int(claims["role_id"].(float64))
+	userID := int(claims["user_id"].(float64))
+
+	if roleID != 1 {
+		logger.Error("User cannot deposit money")
+		c.JSON(400, gin.H{"error": "user cannot deposit money"})
+		return
+	}
+
+	if err := s.MachineService.DepositMoney(userID, deposit.Amount); err != nil {
+		logger.Error("Error depositing money: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "money deposited"})
+
+}
+
+func (s *HTTPHandler) BuyProduct(c *gin.Context) {
+
+	var buyProduct struct {
+		ProductID int `json:"product_id"`
+		Quantity  int `json:"quantity"`
+	}
+
+	var response struct {
+		TotalPrice int   `json:"total_price"`
+		Change     []int `json:"change"`
+		Quantity   int   `json:"quantity"`
+	}
+
+	if err := c.ShouldBindJSON(&buyProduct); err != nil {
+		logger.Error("Error binding json: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokenString := c.Request.Header.Get("Authorization")
+	if len(strings.Split(tokenString, " ")) != 2 {
+		logger.Error("Error getting token from header")
+		c.JSON(400, gin.H{"error": "Error getting token from header"})
+		return
+	}
+
+	token, err := verifyToken(strings.Split(tokenString, " ")[1])
+	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	roleID := int(claims["role_id"].(float64))
+	userID := int(claims["user_id"].(float64))
+
+	if roleID != 1 {
+		logger.Error("User cannot buy product")
+		c.JSON(400, gin.H{"error": "user cannot buy product"})
+		return
+	}
+
+	product, err := s.MachineService.GetProductById(buyProduct.ProductID)
+	if err != nil {
+		logger.Error("Error getting product: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := s.MachineService.GetUserById(userID)
+	if err != nil {
+		logger.Error("Error getting user: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	if user.Deposit < product.Cost {
+		logger.Error("User does not have enough money")
+		c.JSON(400, gin.H{"error": "user does not have enough money"})
+		return
+	}
+
+	if product.ProductID == 0 {
+		logger.Error("Product does not exist")
+		c.JSON(400, gin.H{"error": "product does not exist"})
+		return
+	}
+
+	if product.AmountAvailable < buyProduct.Quantity {
+		logger.Error("Product quantity is not enough")
+		c.JSON(400, gin.H{"error": "product quantity is not enough"})
+		return
+	}
+
+	totalPrice := product.Cost * buyProduct.Quantity
+
+	change := user.Deposit - totalPrice
+
+	user.Deposit = change
+	if err := s.MachineService.UpdateUser(user); err != nil {
+		logger.Error("Error updating user: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	product.AmountAvailable = product.AmountAvailable - buyProduct.Quantity
+
+	if err := s.MachineService.UpdateProductByID(int(product.ProductID), &product); err != nil {
+		logger.Error("Error updating product: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	response.TotalPrice = totalPrice
+	response.Change = getChange(change)
+	response.Quantity = buyProduct.Quantity
+
+	c.JSON(200, response)
+
+}
+
+func getChange(amount int) []int {
+
+	coins := []int{100, 50, 20, 10, 5}
+	change := []int{}
+
+	for _, coin := range coins {
+		for amount >= coin {
+			amount -= coin
+			change = append(change, coin)
+		}
+	}
+
+	return change
+}
+
+func (s *HTTPHandler) ResetDeposit(context *gin.Context) {
+
+	tokenString := context.Request.Header.Get("Authorization")
+	if len(strings.Split(tokenString, " ")) != 2 {
+		logger.Error("Error getting token from header")
+		context.JSON(400, gin.H{"error": "Error getting token from header"})
+		return
+	}
+
+	token, err := verifyToken(strings.Split(tokenString, " ")[1])
+	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
+		context.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	roleID := int(claims["role_id"].(float64))
+	userID := int(claims["user_id"].(float64))
+
+	if roleID != 1 {
+		logger.Error("User cannot reset deposit")
+		context.JSON(400, gin.H{"error": "user cannot reset deposit"})
+		return
+	}
+
+	user, err := s.MachineService.GetUserById(userID)
+	if err != nil {
+		logger.Error("Error getting user: " + err.Error())
+		context.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	user.Deposit = 0
+	if err := s.MachineService.UpdateUser(user); err != nil {
+		logger.Error("Error updating user: " + err.Error())
+		context.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "deposit reset"})
 }
