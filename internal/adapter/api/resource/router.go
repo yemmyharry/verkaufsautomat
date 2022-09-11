@@ -29,5 +29,8 @@ func (s *HTTPHandler) Routes(router *gin.Engine) {
 	auth.GET("/get_product/:id", s.GetProduct)
 	auth.PUT("/update_product/:id", s.UpdateProduct)
 	auth.DELETE("/delete_product/:id", s.DeleteProduct)
+	auth.PATCH("deposit_money", s.DepositMoney)
+	auth.POST("/buy_product", s.BuyProduct)
+	auth.PATCH("reset_deposit", s.ResetDeposit)
 	router.NoRoute(func(c *gin.Context) { c.JSON(404, "no route") })
 }
