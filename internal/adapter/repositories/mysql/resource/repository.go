@@ -2,10 +2,19 @@ package resource
 
 import (
 	"fmt"
-	adapter "verkaufsautomat/internal/adapter/api/resource"
+	"golang.org/x/crypto/bcrypt"
 	"verkaufsautomat/internal/core/domain/resource"
 	"verkaufsautomat/internal/core/logger"
 )
+
+func ComparePassword(hashedPassword string, password string) (bool, error) {
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
 
 func (m MachineRepositoryDB) AutoPopulateRoleTable() {
 	role := resource.Role{
@@ -87,7 +96,7 @@ func (m MachineRepositoryDB) AssignPermissionToRole2() {
 	m.db.Create(&rolePermission3)
 }
 
-func (m MachineRepositoryDB) CreateProduct(product resource.Product) error {
+func (m MachineRepositoryDB) CreateProduct(product *resource.Product) error {
 	m.db.Create(&product)
 	return nil
 }
@@ -104,17 +113,23 @@ func (m MachineRepositoryDB) UpdateProduct(product resource.Product) error {
 
 func (m MachineRepositoryDB) GetProductById(id int) (resource.Product, error) {
 	var product resource.Product
-	m.db.Where("id = ?", id).First(&product)
+	m.db.Where("product_id = ?", id).First(&product)
 	return product, nil
 }
 
-func (m MachineRepositoryDB) GetAllProducts() ([]resource.Product, error) {
+func (m MachineRepositoryDB) GetProducts() ([]resource.Product, error) {
 	var products []resource.Product
 	m.db.Find(&products)
 	return products, nil
 }
 
 func (m MachineRepositoryDB) Register(user *resource.User) error {
+	var user2 resource.User
+	m.db.Where("username = ?", user.Username).First(&user2)
+	if user2.Username != "" {
+		logger.Error("User already exists")
+		return fmt.Errorf("user already exists")
+	}
 	result := m.db.Create(user)
 	return result.Error
 }
@@ -129,7 +144,7 @@ func (m MachineRepositoryDB) Login(user *resource.User) error {
 		return result.Error
 	}
 
-	_, err := adapter.ComparePassword(user.Password, InputPassword)
+	_, err := ComparePassword(user.Password, InputPassword)
 	if err != nil {
 		logger.Error("Password is incorrect")
 		return err
@@ -140,4 +155,10 @@ func (m MachineRepositoryDB) Login(user *resource.User) error {
 
 func (m MachineRepositoryDB) HealthCheck() error {
 	return nil
+}
+
+func (m MachineRepositoryDB) GetUserIdAndRoleId(username string) (uint, uint, error) {
+	var user resource.User
+	m.db.Where("username = ?", username).First(&user)
+	return user.UserID, user.RoleID, nil
 }
