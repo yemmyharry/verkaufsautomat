@@ -196,8 +196,8 @@ func (s *HTTPHandler) GetProducts(c *gin.Context) {
 	c.JSON(200, products)
 }
 
-func (s *HTTPHandler) GetProduct(context *gin.Context) {
-	id := context.Param("id")
+func (s *HTTPHandler) GetProduct(c *gin.Context) {
+	id := c.Param("id")
 	atoi, err := strconv.Atoi(id)
 	if err != nil {
 		logger.Error("Error converting id to int: " + err.Error())
@@ -207,9 +207,100 @@ func (s *HTTPHandler) GetProduct(context *gin.Context) {
 	product, err := s.MachineService.GetProductById(atoi)
 	if err != nil {
 		logger.Error("Error getting product: " + err.Error())
-		context.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
-	context.JSON(200, product)
+	c.JSON(200, product)
+}
+
+func (s *HTTPHandler) UpdateProduct(c *gin.Context) {
+
+	id := c.Param("id")
+	atoi, err := strconv.Atoi(id)
+	if err != nil {
+		logger.Error("Error converting id to int: " + err.Error())
+		return
+	}
+
+	var product models.Product
+	if err := c.ShouldBindJSON(&product); err != nil {
+		logger.Error("Error binding json: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokenString := c.Request.Header.Get("Authorization")
+	if len(strings.Split(tokenString, " ")) != 2 {
+		logger.Error("Error getting token from header")
+		c.JSON(400, gin.H{"error": "Error getting token from header"})
+		return
+	}
+
+	token, err := verifyToken(strings.Split(tokenString, " ")[1])
+	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	roleID := int(claims["role_id"].(float64))
+	userID := int(claims["user_id"].(float64))
+
+	if roleID != 2 {
+		logger.Error("User cannot update product")
+		c.JSON(400, gin.H{"error": "user cannot update product"})
+		return
+	}
+
+	product.SellerID = uint(userID)
+
+	if err := s.MachineService.UpdateProductByID(atoi, &product); err != nil {
+		logger.Error("Error updating product: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "product updated"})
+}
+
+func (s *HTTPHandler) DeleteProduct(c *gin.Context) {
+	id := c.Param("id")
+	atoi, err := strconv.Atoi(id)
+	if err != nil {
+		logger.Error("Error converting id to int: " + err.Error())
+		return
+	}
+
+	tokenString := c.Request.Header.Get("Authorization")
+	if len(strings.Split(tokenString, " ")) != 2 {
+		logger.Error("Error getting token from header")
+		c.JSON(400, gin.H{"error": "Error getting token from header"})
+		return
+	}
+
+	token, err := verifyToken(strings.Split(tokenString, " ")[1])
+	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	roleID := int(claims["role_id"].(float64))
+
+	if roleID != 2 {
+		logger.Error("User cannot delete product")
+		c.JSON(400, gin.H{"error": "user cannot delete product"})
+		return
+	}
+
+	if err := s.MachineService.DeleteProductByID(atoi); err != nil {
+		logger.Error("Error deleting product: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "product deleted"})
 }

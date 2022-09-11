@@ -106,8 +106,15 @@ func (m MachineRepositoryDB) DeleteProduct(product resource.Product) error {
 	return nil
 }
 
-func (m MachineRepositoryDB) UpdateProduct(product resource.Product) error {
-	m.db.Save(&product)
+func (m MachineRepositoryDB) UpdateProductByID(id int, product *resource.Product) error {
+	m.db.Model(&product).Where("product_id = ?", id).Save(&product)
+	return nil
+}
+
+func (m MachineRepositoryDB) DeleteProductByID(id int) error {
+	var product resource.Product
+	m.db.Where("product_id = ?", id).First(&product)
+	m.db.Delete(&product)
 	return nil
 }
 
