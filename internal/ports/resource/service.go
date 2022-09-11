@@ -9,4 +9,6 @@ type MachineService interface {
 	CreateProduct(product *resource.Product) error
 	GetProducts() ([]resource.Product, error)
 	GetProductById(id int) (resource.Product, error)
+	UpdateProductByID(id int, product *resource.Product) error
+	DeleteProductByID(id int) error
 }
