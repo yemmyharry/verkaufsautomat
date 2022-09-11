@@ -27,5 +27,7 @@ func (s *HTTPHandler) Routes(router *gin.Engine) {
 	auth.POST("/create_product", s.CreateProduct)
 	auth.GET("/get_products", s.GetProducts)
 	auth.GET("/get_product/:id", s.GetProduct)
+	auth.PUT("/update_product/:id", s.UpdateProduct)
+	auth.DELETE("/delete_product/:id", s.DeleteProduct)
 	router.NoRoute(func(c *gin.Context) { c.JSON(404, "no route") })
 }
