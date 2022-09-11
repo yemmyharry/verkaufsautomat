@@ -6,14 +6,11 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"os"
+	"verkaufsautomat/internal/core/domain/resource"
 )
 
 type MachineRepositoryDB struct {
 	db *gorm.DB
-}
-
-func (m MachineRepositoryDB) HealthCheck() error {
-	return nil
 }
 
 var err = godotenv.Load("verkaufsautomat.env")
@@ -30,6 +27,17 @@ func NewMachineRepositoryDB() *MachineRepositoryDB {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//client.AutoMigrate(&domain.Machine{})
+
+	client.AutoMigrate(&resource.Product{}, &resource.User{}, &resource.Role{}, &resource.Permission{}, &resource.RolePermission{})
+
+	autoPopulateRoleTable := MachineRepositoryDB{db: client}
+	autoPopulateRoleTable.AutoPopulateRoleTable()
+	autoPopulatePermissionTable := MachineRepositoryDB{db: client}
+	autoPopulatePermissionTable.AutoPopulatePermissionTable()
+	assignPermissionToRole := MachineRepositoryDB{db: client}
+	assignPermissionToRole.AssignPermissionToRole()
+	assignPermissionToRole2 := MachineRepositoryDB{db: client}
+	assignPermissionToRole2.AssignPermissionToRole2()
+
 	return &MachineRepositoryDB{client}
 }
