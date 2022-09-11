@@ -169,3 +169,22 @@ func (m MachineRepositoryDB) GetUserIdAndRoleId(username string) (uint, uint, er
 	m.db.Where("username = ?", username).First(&user)
 	return user.UserID, user.RoleID, nil
 }
+
+func (m MachineRepositoryDB) DepositMoney(userid, amount int) error {
+	var user resource.User
+	m.db.Where("user_id = ?", userid).First(&user)
+	user.Deposit += amount
+	m.db.Save(&user)
+	return nil
+}
+
+func (m MachineRepositoryDB) GetUserById(id int) (resource.User, error) {
+	var user resource.User
+	m.db.Where("user_id = ?", id).First(&user)
+	return user, nil
+}
+
+func (m MachineRepositoryDB) UpdateUser(user resource.User) error {
+	m.db.Model(&user).Save(&user)
+	return nil
+}
