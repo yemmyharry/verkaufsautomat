@@ -5,7 +5,10 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"strconv"
+	"strings"
 	"time"
+	"verkaufsautomat/internal/adapter/repositories/mysql/resource"
 	models "verkaufsautomat/internal/core/domain/resource"
 	"verkaufsautomat/internal/core/logger"
 )
@@ -20,18 +23,17 @@ func (s *HTTPHandler) HealthCheck(c *gin.Context) {
 }
 
 func TokenValid(c *gin.Context) error {
-	cookie, err := c.Cookie("myToken")
+	tokenString := c.Request.Header.Get("Authorization")
+	tokenString = strings.Replace(tokenString, "Bearer ", "", 1)
+	token, err := verifyToken(tokenString)
 	if err != nil {
-		return err
-	}
-
-	token, err := verifyToken(cookie)
-	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
 		return err
 	}
 
 	if !isTokenValid(token) {
-		return fmt.Errorf("token is not valid")
+		logger.Error("Token is not valid")
+		return err
 	}
 
 	return nil
@@ -40,14 +42,14 @@ func TokenValid(c *gin.Context) error {
 func (s *HTTPHandler) Register(c *gin.Context) {
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
-		logger.Error(err)
+		logger.Error("Error binding json: " + err.Error())
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
 	hashPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("Error hashing password: " + err.Error())
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
@@ -55,7 +57,7 @@ func (s *HTTPHandler) Register(c *gin.Context) {
 	user.Password = string(hashPassword)
 
 	if err := s.MachineService.Register(&user); err != nil {
-		logger.Error(err)
+		logger.Error("Error registering user: " + err.Error())
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
@@ -71,6 +73,14 @@ func (s *HTTPHandler) Login(c *gin.Context) {
 		return
 	}
 
+	userid, roleid, err := resource.NewMachineRepositoryDB().GetUserIdAndRoleId(user.Username)
+	if err != nil {
+		return
+	}
+
+	user.UserID = userid
+	user.RoleID = roleid
+
 	token, err := generateToken(&user)
 	if err != nil {
 		logger.Error("Error generating token: " + err.Error())
@@ -78,7 +88,7 @@ func (s *HTTPHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("myToken", token, 3600, "/", "*", false, true)
+	c.Header("Authorization", "Bearer "+token)
 
 	if err := s.MachineService.Login(&user); err != nil {
 		logger.Error("Error logging in: " + err.Error())
@@ -89,19 +99,11 @@ func (s *HTTPHandler) Login(c *gin.Context) {
 	c.JSON(200, gin.H{"message": "user logged in"})
 }
 
-func ComparePassword(hashedPassword string, password string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
 func generateToken(user *models.User) (string, error) {
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"username": user.Username,
+		"user_id":  user.UserID,
 		"role_id":  user.RoleID,
 		"exp":      time.Now().Add(time.Hour * 1).Unix(),
 	})
@@ -138,4 +140,76 @@ func isTokenValid(token *jwt.Token) bool {
 	}
 
 	return true
+}
+
+func (s *HTTPHandler) CreateProduct(c *gin.Context) {
+	var product models.Product
+	if err := c.ShouldBindJSON(&product); err != nil {
+		logger.Error("Error binding json: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokenString := c.Request.Header.Get("Authorization")
+	if len(strings.Split(tokenString, " ")) != 2 {
+		logger.Error("Error getting token from header")
+		c.JSON(400, gin.H{"error": "Error getting token from header"})
+		return
+	}
+
+	token, err := verifyToken(strings.Split(tokenString, " ")[1])
+	if err != nil {
+		logger.Error("Error verifying token: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	roleID := int(claims["role_id"].(float64))
+	userID := int(claims["user_id"].(float64))
+
+	if roleID != 2 {
+		logger.Error("User cannot create product")
+		c.JSON(400, gin.H{"error": "user cannot create product"})
+		return
+	}
+
+	product.SellerID = uint(userID)
+
+	if err := s.MachineService.CreateProduct(&product); err != nil {
+		logger.Error("Error creating product: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "product created"})
+}
+
+func (s *HTTPHandler) GetProducts(c *gin.Context) {
+	products, err := s.MachineService.GetProducts()
+	if err != nil {
+		logger.Error("Error getting products: " + err.Error())
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, products)
+}
+
+func (s *HTTPHandler) GetProduct(context *gin.Context) {
+	id := context.Param("id")
+	atoi, err := strconv.Atoi(id)
+	if err != nil {
+		logger.Error("Error converting id to int: " + err.Error())
+		return
+	}
+
+	product, err := s.MachineService.GetProductById(atoi)
+	if err != nil {
+		logger.Error("Error getting product: " + err.Error())
+		context.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	context.JSON(200, product)
 }
