@@ -9,6 +9,10 @@ type service struct {
 	MachineRepository ports.MachineRepository
 }
 
+func (s service) UpdateUser(user resource.User) error {
+	return s.MachineRepository.UpdateUser(user)
+}
+
 func (s service) DeleteProductByID(id int) error {
 	return s.MachineRepository.DeleteProductByID(id)
 }
@@ -25,12 +29,20 @@ func (s service) UpdateProductByID(id int, product *resource.Product) error {
 	return s.MachineRepository.UpdateProductByID(id, product)
 }
 
+func (s service) DepositMoney(userid, amount int) error {
+	return s.MachineRepository.DepositMoney(userid, amount)
+}
+
 func (s service) CreateProduct(product *resource.Product) error {
 	return s.MachineRepository.CreateProduct(product)
 }
 
 func (s service) Login(user *resource.User) error {
 	return s.MachineRepository.Login(user)
+}
+
+func (s service) GetUserById(id int) (resource.User, error) {
+	return s.MachineRepository.GetUserById(id)
 }
 
 func (s service) HealthCheck() error {
