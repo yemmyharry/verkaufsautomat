@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"verkaufsautomat/internal/core/domain/resource"
 	services "verkaufsautomat/internal/core/services/mock"
 )
 
@@ -49,6 +50,34 @@ func TestApplication_Deposit(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Errorf("Expected status code %d, got %d", http.StatusOK, response.Code)
 		}
+
+	})
+
+}
+
+// test for buy product
+func TestApplication_BuyProduct(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockedService := services.NewMockMachineService(ctrl)
+	handler := NewHTTPHandler(mockedService)
+
+	router := gin.Default()
+
+	handler.Routes(router)
+
+	t.Run("Buy product", func(t *testing.T) {
+		BuyProduct := struct {
+			ProductID int `json:"product_id"`
+			Quantity  int `json:"quantity"`
+		}{
+			ProductID: 1,
+			Quantity:  1,
+		}
+
+		mockedService.EXPECT().GetProductById(BuyProduct.ProductID).Return(resource.Product{}, nil)
+
+		mockedService.EXPECT().GetUserById(1).Return(resource.User{}, nil)
 
 	})
 
