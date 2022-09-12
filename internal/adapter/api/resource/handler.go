@@ -108,7 +108,7 @@ func (s *HTTPHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "user logged in"})
+	c.JSON(200, gin.H{"message": "user logged in", "token": token})
 }
 
 func generateToken(user *models.User) (string, error) {
