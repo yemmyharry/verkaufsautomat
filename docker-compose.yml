@@ -1,0 +1,32 @@
+version: "3.7"
+
+services:
+  db:
+    image: mysql:5.7
+    container_name: db
+    platform: linux/arm64
+    restart: always
+    ports:
+      - "3306:3306"
+    env_file:
+      - verkaufsautomat.env
+    environment:
+      MYSQL_DATABASE: vending
+      MYSQL_USER: user
+      MYSQL_PASSWORD: mysqlpw
+      MYSQL_DB_HOST: db
+      MYSQL_DB_PORT: 3306
+
+    volumes:
+      - db-data:/var/lib/mysql
+
+  vending:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    restart: always
+
+volumes:
+    db-data:
