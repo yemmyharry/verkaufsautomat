@@ -15,11 +15,11 @@ type MachineRepositoryDB struct {
 
 var err = godotenv.Load("verkaufsautomat.env")
 
-var DbUsername = os.Getenv("DB_USER")
-var DbPassword = os.Getenv("DB_PASS")
-var DbName = os.Getenv("DB_NAME")
-var DbHost = os.Getenv("DB_HOST")
-var DbPort = os.Getenv("DB_PORT")
+var DbUsername = os.Getenv("MYSQL_USER")
+var DbPassword = os.Getenv("MYSQL_PASSWORD")
+var DbName = os.Getenv("MYSQL_DATABASE")
+var DbHost = os.Getenv("MYSQL_DB_HOST")
+var DbPort = os.Getenv("MYSQL_DB_PORT")
 
 func NewMachineRepositoryDB() *MachineRepositoryDB {
 	dsn := DbUsername + ":" + DbPassword + "@tcp" + "(" + DbHost + ":" + DbPort + ")/" + DbName + "?" + "charset=utf8mb4&parseTime=True&loc=Local"
